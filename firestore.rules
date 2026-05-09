@@ -51,7 +51,8 @@ service cloud.firestore {
              data.phone is string && data.phone.size() <= 20 &&
              data.ticketTier is string &&
              data.status in ['pending', 'confirmed', 'rejected'] &&
-             (!data.keys().contains('amount') || data.amount is number);
+             (!data.keys().contains('amount') || data.amount is number) &&
+             (!data.keys().contains('paymentLink') || data.paymentLink is string);
     }
 
     // --- Rules ---
@@ -75,8 +76,8 @@ service cloud.firestore {
                     isValidId(bookingId);
       
       allow update: if isSignedIn() && (
-        // Admin can update status
-        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])) ||
+        // Admin can update status and payment link
+        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'paymentLink'])) ||
         // User can update basic info if still pending
         (isOwner(existing().userId) && existing().status == 'pending' && 
          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'updatedAt']))

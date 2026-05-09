@@ -24,6 +24,7 @@
         "phone": { "type": "string" },
         "ticketTier": { "type": "string" },
         "status": { "type": "string", "enum": ["pending", "confirmed", "rejected"] },
+        "paymentLink": { "type": "string", "description": "Link to pay for the ticket" },
         "amount": { "type": "number" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }

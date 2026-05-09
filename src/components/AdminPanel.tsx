@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Shield, Check, X, RefreshCw } from 'lucide-react';
+import { Shield, Check, X, RefreshCw, ExternalLink, CreditCard } from 'lucide-react';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { collection, query, onSnapshot, orderBy, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -15,6 +15,7 @@ export const AdminPanel = () => {
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [paymentLinks, setPaymentLinks] = useState<Record<string, string>>({});
 
   const isAdmin = user?.email === 'erranveerranjan@gmail.com';
 
@@ -37,6 +38,14 @@ export const AdminPanel = () => {
         ...doc.data()
       }));
       setBookings(bookingsData);
+      
+      // Initialize payment links state
+      const links: Record<string, string> = {};
+      bookingsData.forEach(b => {
+        links[b.id] = b.paymentLink || '';
+      });
+      setPaymentLinks(links);
+
       setLoading(false);
     }, (error) => {
       console.error("Admin real-time error:", error);
@@ -46,20 +55,25 @@ export const AdminPanel = () => {
     return () => unsubscribeBookings();
   }, [isAdmin]);
 
-  const updateStatus = async (id: string, newStatus: string) => {
+  const updateBooking = async (id: string, updates: any) => {
     setUpdatingId(id);
     try {
       const bookingRef = doc(db, 'bookings', id);
       await updateDoc(bookingRef, {
-        status: newStatus,
+        ...updates,
         updatedAt: serverTimestamp()
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `bookings/${id}`);
-      alert('Failed to update status. Check permissions.');
+      alert('Failed to update booking. Check permissions.');
     } finally {
       setUpdatingId(null);
     }
+  };
+
+  const handlePaymentLinkUpdate = async (id: string) => {
+    await updateBooking(id, { paymentLink: paymentLinks[id] });
+    alert('Payment link updated!');
   };
 
   if (!isAdmin) return null;
@@ -97,6 +111,7 @@ export const AdminPanel = () => {
                   <th className="p-6 text-[10px] font-black uppercase text-gray-500 tracking-widest">Customer</th>
                   <th className="p-6 text-[10px] font-black uppercase text-gray-500 tracking-widest">Contact</th>
                   <th className="p-6 text-[10px] font-black uppercase text-gray-500 tracking-widest">Tier</th>
+                  <th className="p-6 text-[10px] font-black uppercase text-gray-500 tracking-widest">Payment Link</th>
                   <th className="p-6 text-[10px] font-black uppercase text-gray-500 tracking-widest">Status</th>
                   <th className="p-6 text-[10px] font-black uppercase text-gray-500 tracking-widest">Actions</th>
                 </tr>
@@ -116,6 +131,23 @@ export const AdminPanel = () => {
                       </span>
                     </td>
                     <td className="p-6">
+                      <div className="flex gap-2 min-w-[200px]">
+                        <input 
+                          type="text" 
+                          placeholder="Stripe/Payment URL"
+                          value={paymentLinks[booking.id] || ''}
+                          onChange={(e) => setPaymentLinks({ ...paymentLinks, [booking.id]: e.target.value })}
+                          className="bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-[10px] text-white flex-1 focus:outline-none focus:border-red-500"
+                        />
+                        <button 
+                          onClick={() => handlePaymentLinkUpdate(booking.id)}
+                          className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-all"
+                        >
+                          <ExternalLink className="w-3 h-3 text-white" />
+                        </button>
+                      </div>
+                    </td>
+                    <td className="p-6">
                       <span className={`text-[10px] font-black uppercase tracking-widest ${
                         booking.status === 'confirmed' ? 'text-green-500' : 
                         booking.status === 'pending' ? 'text-orange-500' : 'text-red-500'
@@ -127,14 +159,14 @@ export const AdminPanel = () => {
                       <div className="flex gap-2">
                         <button 
                           disabled={updatingId === booking.id || booking.status === 'confirmed'}
-                          onClick={() => updateStatus(booking.id, 'confirmed')}
+                          onClick={() => updateBooking(booking.id, { status: 'confirmed' })}
                           className="p-2 bg-green-500/10 text-green-500 rounded-lg hover:bg-green-500 hover:text-black transition-all disabled:opacity-20"
                         >
                           <Check className="w-4 h-4" />
                         </button>
                         <button 
                           disabled={updatingId === booking.id || booking.status === 'rejected'}
-                          onClick={() => updateStatus(booking.id, 'rejected')}
+                          onClick={() => updateBooking(booking.id, { status: 'rejected' })}
                           className="p-2 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500 hover:text-black transition-all disabled:opacity-20"
                         >
                           <X className="w-4 h-4" />

@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Ticket, Clock, CheckCircle2, XCircle, ChevronRight } from 'lucide-react';
+import { Ticket, Clock, CheckCircle2, XCircle, ChevronRight, Download, QrCode, Rocket, X, CreditCard } from 'lucide-react';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
@@ -14,6 +14,7 @@ export const MyBookings = () => {
   const [user, setUser] = useState<User | null>(null);
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewTicket, setViewTicket] = useState<any | null>(null);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
@@ -136,13 +137,30 @@ export const MyBookings = () => {
                       </div>
                       
                       {booking.status === 'confirmed' && (
-                        <button className="mt-4 px-6 py-2 bg-green-500 text-black rounded-xl font-black uppercase tracking-tighter text-[10px] hover:scale-105 transition-transform flex items-center gap-2">
+                        <button 
+                          onClick={() => setViewTicket(booking)}
+                          className="mt-4 px-6 py-2 bg-green-500 text-black rounded-xl font-black uppercase tracking-tighter text-[10px] hover:scale-105 transition-transform flex items-center gap-2"
+                        >
                           View Digital Ticket <ChevronRight className="w-3 h-3" />
                         </button>
                       )}
                       
                       {booking.status === 'pending' && (
-                        <p className="text-[10px] text-orange-400 italic">Please complete payment via link sent to your phone <span className="not-italic font-bold">({booking.phone})</span></p>
+                        <div className="flex flex-col items-end gap-2 mt-4">
+                           {booking.paymentLink ? (
+                             <a 
+                               href={booking.paymentLink}
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               className="px-6 py-2 bg-orange-500 text-white rounded-xl font-black uppercase tracking-tighter text-[10px] hover:scale-105 transition-transform flex items-center gap-2 shadow-[0_0_15px_rgba(249,115,22,0.4)]"
+                             >
+                               Complete Payment <CreditCard className="w-3 h-3" />
+                             </a>
+                           ) : (
+                             <p className="text-[10px] text-orange-400 italic">Awaiting payment link from admin...</p>
+                           )}
+                           <p className="text-[10px] text-gray-500 italic">Tracking on phone: {booking.phone}</p>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -152,6 +170,76 @@ export const MyBookings = () => {
           </div>
         )}
       </div>
+
+      {/* Ticket Modal */}
+      <AnimatePresence>
+        {viewTicket && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setViewTicket(null)}
+              className="absolute inset-0 bg-black/90 backdrop-blur-xl"
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative w-full max-w-sm bg-white text-black rounded-[2rem] overflow-hidden shadow-2xl"
+            >
+              <div className="bg-orange-500 p-8 text-black">
+                <div className="flex justify-between items-start mb-8">
+                  <div className="flex items-center gap-2">
+                    <Rocket className="w-6 h-6" />
+                    <span className="font-black uppercase italic text-xl">Cosmos</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Boarding Pass</p>
+                    <p className="font-mono text-xs font-bold">#{viewTicket.id.slice(0, 8)}</p>
+                  </div>
+                </div>
+                <h3 className="text-6xl font-black uppercase italic tracking-tighter leading-none mb-2">{viewTicket.ticketTier}</h3>
+                <p className="text-sm font-bold uppercase tracking-widest opacity-80">Full Access Granted</p>
+              </div>
+
+              <div className="p-8 space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                   <div>
+                     <p className="text-[10px] uppercase font-black text-gray-400 tracking-widest mb-1">Passenger</p>
+                     <p className="font-bold uppercase text-sm truncate">{viewTicket.name}</p>
+                   </div>
+                   <div className="text-right">
+                     <p className="text-[10px] uppercase font-black text-gray-400 tracking-widest mb-1">Sector</p>
+                     <p className="font-bold uppercase text-sm italic">Galaxy Stage</p>
+                   </div>
+                </div>
+
+                <div className="border-y border-dashed border-gray-200 py-6 flex flex-col items-center gap-4">
+                   <div className="w-32 h-32 bg-gray-50 rounded-2xl flex items-center justify-center border border-gray-100">
+                     <QrCode className="w-24 h-24 text-black opacity-80" />
+                   </div>
+                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Scan At Entry Point</p>
+                </div>
+
+                <button 
+                  onClick={() => window.print()}
+                  className="w-full py-4 bg-black text-white rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 hover:bg-orange-500 transition-colors"
+                >
+                  Download Pass <Download className="w-4 h-4" />
+                </button>
+              </div>
+              
+              <button 
+                onClick={() => setViewTicket(null)}
+                className="absolute top-4 right-4 p-2 bg-black/10 rounded-full hover:bg-black/20 transition-all"
+              >
+                <X className="w-4 h-4 text-black" />
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </section>
   );
 };
