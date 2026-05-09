@@ -1,0 +1,93 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'erranveerranjan@gmail.com'
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Validation Helpers ---
+    
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email']) &&
+             data.uid is string &&
+             data.email is string &&
+             data.email.size() <= 256 &&
+             (!data.keys().contains('role') || data.role in ['user', 'admin']);
+    }
+
+    function isValidBooking(data) {
+      return data.keys().hasAll(['userId', 'name', 'phone', 'ticketTier', 'status']) &&
+             data.userId is string &&
+             data.name is string && data.name.size() <= 100 &&
+             data.phone is string && data.phone.size() <= 20 &&
+             data.ticketTier is string &&
+             data.status in ['pending', 'confirmed', 'rejected'] &&
+             (!data.keys().contains('amount') || data.amount is number);
+    }
+
+    // --- Rules ---
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(incoming()) && incoming().role == 'user';
+      allow update: if isOwner(userId) && isValidUser(incoming()) && 
+                    incoming().role == existing().role &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL']);
+    }
+
+    match /bookings/{bookingId} {
+      allow get: if isSignedIn() && (isOwner(existing().userId) || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      allow create: if isSignedIn() && 
+                    isValidBooking(incoming()) && 
+                    incoming().userId == request.auth.uid &&
+                    incoming().status == 'pending' &&
+                    isValidId(bookingId);
+      
+      allow update: if isSignedIn() && (
+        // Admin can update status
+        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])) ||
+        // User can update basic info if still pending
+        (isOwner(existing().userId) && existing().status == 'pending' && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'updatedAt']))
+      );
+
+      allow delete: if isAdmin() || (isOwner(existing().userId) && existing().status == 'pending');
+    }
+    
+    // Explicit Admin collection check
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+    }
+  }
+}
